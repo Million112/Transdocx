@@ -1,0 +1,76 @@
+# -*- mode: python ; coding: utf-8 -*-
+
+a = Analysis(
+    ['gui_app.py'],
+    pathex=[],
+    binaries=[],
+    datas=[
+        ('config.yaml', '.'), 
+        ('transdocx', 'transdocx'),
+        ('output', 'output')  # THÊM DÒNG NÀY
+    ],
+    hiddenimports=[
+        'transdocx', 
+        'transdocx.docxtranslator', 
+        'transdocx.worker.extractor', 
+        'transdocx.worker.translator', 
+        'transdocx.worker.injector', 
+        'transdocx.utils.spinner', 
+        'transdocx.utils.openai_client', 
+        'transdocx.utils.prompt_builder', 
+        'transdocx.utils.decorator',
+        'transdocx.utils.is_numeric',
+        'yaml', 
+        'openai', 
+        'aiohttp',
+        'lxml',
+        'lxml.etree',
+        'lxml._elementpath',
+        'docx',
+        'docx.text.paragraph',
+        'docx.table',
+        'tqdm',
+        'asyncio',
+        'json',
+        'os',
+        'sys',
+        'zipfile',
+        'shutil',
+        'tempfile',
+        're',
+        'collections',
+        'dataclasses',
+        'typing',
+        'functools',
+        'time',
+        'logging',
+    ],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+    optimize=0,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name='translator_debug',  # ĐỔI TÊN ĐỂ PHÂN BIỆT
+    debug=True,  # BẬT DEBUG MODE
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    runtime_tmpdir=None,
+    console=True,  # QUAN TRỌNG: BẬT CONSOLE ĐỂ XEM LOG
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
+)
