@@ -1,7 +1,16 @@
+# Cơ bản & GUI
 pyyaml>=6.0
-openai>=1.0.0
 python-docx>=1.1.0
+PyInstaller>=6.0
+
+# OpenAI & Network
+openai>=1.0.0
 aiohttp
-PyInstaller>=5.0
+requests
+
+# AI Models (MarianMT)
 torch
 transformers
+sentencepiece
+sacremoses
+tqdm
