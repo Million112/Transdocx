@@ -57,11 +57,11 @@ def build_exe():
         '--copy-metadata=filelock',
         '--copy-metadata=numpy',
 
-        # --- THÊM 2 DÒNG NÀY ĐỂ FIX LỖI PROTOBUF ---
-        '--hidden-import=google.protobuf',
-        '--collect-submodules=google.protobuf',
+        # # --- THÊM 2 DÒNG NÀY ĐỂ FIX LỖI PROTOBUF ---
+        # '--hidden-import=google.protobuf',
+        # '--collect-submodules=google.protobuf',
 
-        # --------------------------------------------------------
+        # # --------------------------------------------------------
         
         '--clean',
         '--noconfirm',

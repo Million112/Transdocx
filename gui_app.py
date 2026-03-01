@@ -2,22 +2,6 @@
 GUI Application for Translator
 Run with: python gui_app.py
 """
-# --- VŨ KHÍ TỐI THƯỢNG: ĐÁNH LỪA HUGGING FACE TRƯỚC KHI NÓ KỊP LOAD ---
-import sys
-import importlib.util
-
-_original_find_spec = importlib.util.find_spec
-def _custom_find_spec(name, package=None):
-    # Nếu Hugging Face đi tìm các thư viện này, luôn báo là đã tìm thấy
-    if name in ["google.protobuf", "protobuf", "sentencepiece"]:
-        class MockSpec:
-            origin = "frozen_by_pyinstaller"
-        return MockSpec()
-    # Với các thư viện khác, trả về kết quả tìm kiếm bình thường
-    return _original_find_spec(name, package)
-importlib.util.find_spec = _custom_find_spec
-# ---------------------------------------------------------------------
-
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
@@ -68,31 +52,6 @@ class TranslatorApp:
         x = (self.root.winfo_screenwidth() // 2) - (width // 2)
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
-
-    def get_absolute_path(self, relative_path):
-        """Chuyển đổi đường dẫn model thành đường dẫn tuyệt đối an toàn khi chạy .exe"""
-        import sys
-        import os
-        
-        # Xóa tiền tố ./ hoặc .\ để ghép path chuẩn hơn
-        clean_path = relative_path.replace('./', '').replace('.\\', '')
-        
-        # 1. Nếu đang chạy bằng PyInstaller (.exe)
-        if getattr(sys, 'frozen', False):
-            # Với chế độ --onedir, thư mục gốc là thư mục chứa file .exe
-            base_dir = os.path.dirname(sys.executable)
-            exe_path = os.path.join(base_dir, clean_path)
-            
-            # (Dự phòng) Nếu dùng --onefile trong tương lai thì model nằm ở sys._MEIPASS
-            meipass_path = os.path.join(getattr(sys, '_MEIPASS', base_dir), clean_path)
-            
-            if os.path.exists(meipass_path):
-                return meipass_path
-            return exe_path
-        
-        # 2. Nếu chạy code thuần bằng python gui_app.py
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        return os.path.join(base_dir, clean_path)
     
     def load_config(self):
         """Load configuration from config.yaml - FIXED for PyInstaller"""
@@ -340,22 +299,13 @@ class TranslatorApp:
             output_dir = "output"
             selected_engine = self.engine_var.get()
 
-            # Tự động kiểm tra thiết bị
+            # Tự động kiểm tra thiết bị: nếu chọn marian và có card NVIDIA thì dùng cuda
             device_to_use = self.config.get("marian_device", "cpu")
             if selected_engine == "marian" and torch.cuda.is_available():
                 device_to_use = "cuda"
-                logger.info("💎 GUI: Đang sử dụng GPU để dịch!")
+                logger.info("💎 GUI: Đang sử dụng GPU GTX 1650 để dịch!")
             else:
                 logger.info(f"🚀 GUI: Đang sử dụng {device_to_use.upper()}")
-
-            # --- SỬA Ở ĐÂY: Xử lý đường dẫn MarianMT an toàn ---
-            raw_model_path = self.config.get("marian_model_path", "./my_custom_marianMT")
-            safe_model_path = self.get_absolute_path(raw_model_path)
-            
-            # Bắt lỗi ngay lập tức nếu folder model bị thiếu sau khi build
-            if selected_engine == "marian" and not os.path.exists(safe_model_path):
-                raise FileNotFoundError(f"Không tìm thấy bộ não AI (model) tại:\n{safe_model_path}")
-            # --------------------------------------------------
 
             # Khởi tạo translator
             docx_translator = DocxTranslator(
@@ -368,8 +318,8 @@ class TranslatorApp:
                 max_chunk_size=self.config.get("max_chunk_size", 5000),
                 max_concurrent=self.config.get("max_concurrent", 100),
                 engine=selected_engine,
-                marian_model_path=safe_model_path,  # Đã thay đổi thành biến an toàn
-                marian_device=device_to_use 
+                marian_model_path=self.config.get("marian_model_path", "./my_custom_marianMT"),
+                marian_device=device_to_use # Sử dụng device vừa kiểm tra
             )
             
             docx_translator.translate()
