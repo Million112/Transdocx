@@ -2,6 +2,22 @@
 GUI Application for Translator
 Run with: python gui_app.py
 """
+# --- VŨ KHÍ TỐI THƯỢNG: ĐÁNH LỪA HUGGING FACE TRƯỚC KHI NÓ KỊP LOAD ---
+import sys
+import importlib.util
+
+_original_find_spec = importlib.util.find_spec
+def _custom_find_spec(name, package=None):
+    # Nếu Hugging Face đi tìm các thư viện này, luôn báo là đã tìm thấy
+    if name in ["google.protobuf", "protobuf", "sentencepiece"]:
+        class MockSpec:
+            origin = "frozen_by_pyinstaller"
+        return MockSpec()
+    # Với các thư viện khác, trả về kết quả tìm kiếm bình thường
+    return _original_find_spec(name, package)
+importlib.util.find_spec = _custom_find_spec
+# ---------------------------------------------------------------------
+
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
@@ -23,8 +39,8 @@ class TranslatorApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Translator app")
-        self.root.geometry("500x300")
-        self.root.resizable(False, False)
+        self.root.geometry("600x700")
+        self.root.resizable(True, True)
         
         # Set icon if available
         try:
@@ -52,6 +68,31 @@ class TranslatorApp:
         x = (self.root.winfo_screenwidth() // 2) - (width // 2)
         y = (self.root.winfo_screenheight() // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
+
+    def get_absolute_path(self, relative_path):
+        """Chuyển đổi đường dẫn model thành đường dẫn tuyệt đối an toàn khi chạy .exe"""
+        import sys
+        import os
+        
+        # Xóa tiền tố ./ hoặc .\ để ghép path chuẩn hơn
+        clean_path = relative_path.replace('./', '').replace('.\\', '')
+        
+        # 1. Nếu đang chạy bằng PyInstaller (.exe)
+        if getattr(sys, 'frozen', False):
+            # Với chế độ --onedir, thư mục gốc là thư mục chứa file .exe
+            base_dir = os.path.dirname(sys.executable)
+            exe_path = os.path.join(base_dir, clean_path)
+            
+            # (Dự phòng) Nếu dùng --onefile trong tương lai thì model nằm ở sys._MEIPASS
+            meipass_path = os.path.join(getattr(sys, '_MEIPASS', base_dir), clean_path)
+            
+            if os.path.exists(meipass_path):
+                return meipass_path
+            return exe_path
+        
+        # 2. Nếu chạy code thuần bằng python gui_app.py
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        return os.path.join(base_dir, clean_path)
     
     def load_config(self):
         """Load configuration from config.yaml - FIXED for PyInstaller"""
@@ -182,6 +223,24 @@ class TranslatorApp:
         config_text = f"📝 Config: {source_lang} → {target_lang} | Model: {model}"
         ttk.Label(config_frame, text=config_text, font=("Arial", 9)).pack(anchor="w")
         
+        # --- MỚI: Khu vực chọn Engine ---
+        engine_frame = ttk.LabelFrame(self.root, text="Translation Engine")
+        engine_frame.pack(pady=5, padx=20, fill="x")
+        
+        self.engine_var = tk.StringVar(value=self.config.get("default_engine", "openai"))
+        
+        # Tùy chọn 1: OpenAI
+        ttk.Radiobutton(
+            engine_frame, text="OpenAI (Cloud - Requires API Key)", 
+            variable=self.engine_var, value="openai"
+        ).pack(anchor="w", padx=10, pady=2)
+        
+        # Tùy chọn 2: MarianMT
+        ttk.Radiobutton(
+            engine_frame, text="MarianMT (Local Model - Offline)", 
+            variable=self.engine_var, value="marian"
+        ).pack(anchor="w", padx=10, pady=2)
+
         # Translate button
         self.translate_btn = ttk.Button(
             self.root,
@@ -251,8 +310,8 @@ class TranslatorApp:
             messagebox.showwarning("No File", "Please select a DOCX file first.")
             return
         
-        # Check API key
-        if not self.config.get("openai_api_key"):
+        # Check API key ONLY IF OpenAI is selected
+        if self.engine_var.get() == "openai" and not self.config.get("openai_api_key"):
             messagebox.showerror(
                 "API Key Required",
                 "OpenAI API key is missing in config.yaml.\n"
@@ -276,11 +335,29 @@ class TranslatorApp:
     def run_translation(self):
         """Run the actual translation (in background thread)"""
         try:
-            # Get configuration
+            import torch # Thêm import torch ở đây để kiểm tra CUDA
             input_file = self.input_file.get()
             output_dir = "output"
+            selected_engine = self.engine_var.get()
+
+            # Tự động kiểm tra thiết bị
+            device_to_use = self.config.get("marian_device", "cpu")
+            if selected_engine == "marian" and torch.cuda.is_available():
+                device_to_use = "cuda"
+                logger.info("💎 GUI: Đang sử dụng GPU để dịch!")
+            else:
+                logger.info(f"🚀 GUI: Đang sử dụng {device_to_use.upper()}")
+
+            # --- SỬA Ở ĐÂY: Xử lý đường dẫn MarianMT an toàn ---
+            raw_model_path = self.config.get("marian_model_path", "./my_custom_marianMT")
+            safe_model_path = self.get_absolute_path(raw_model_path)
             
-            # Initialize and run translator
+            # Bắt lỗi ngay lập tức nếu folder model bị thiếu sau khi build
+            if selected_engine == "marian" and not os.path.exists(safe_model_path):
+                raise FileNotFoundError(f"Không tìm thấy bộ não AI (model) tại:\n{safe_model_path}")
+            # --------------------------------------------------
+
+            # Khởi tạo translator
             docx_translator = DocxTranslator(
                 input_file=input_file,
                 output_dir=output_dir,
@@ -289,7 +366,10 @@ class TranslatorApp:
                 source_lang=self.config.get("source_lang", "English"),
                 target_lang=self.config.get("target_lang", "Vietnamese"),
                 max_chunk_size=self.config.get("max_chunk_size", 5000),
-                max_concurrent=self.config.get("max_concurrent", 100)
+                max_concurrent=self.config.get("max_concurrent", 100),
+                engine=selected_engine,
+                marian_model_path=safe_model_path,  # Đã thay đổi thành biến an toàn
+                marian_device=device_to_use 
             )
             
             docx_translator.translate()

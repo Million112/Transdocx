@@ -3,10 +3,18 @@ import sys  # THÊM IMPORT NÀY
 from transdocx.worker.extractor import Extractor
 from transdocx.worker.injector import Injector
 from transdocx.worker.translator import Translator
+from .utils.openai_client import OpenAIClientManager
+from .utils.marian_client import MarianClient
 
 
 class DocxTranslator:
-    def __init__(self, input_file: str, output_dir: str = "output", openai_api_key: str = "", model: str = "gpt-4o-mini", source_lang: str = "English", target_lang: str = "Vietnamese", max_chunk_size: int = 5000, max_concurrent: int = 100):
+    def __init__(self, input_file: str, output_dir: str, 
+                 openai_api_key: str = None, model: str = "gpt-4o-mini",
+                 source_lang: str = "English", target_lang: str = "Vietnamese",
+                 max_chunk_size: int = 5000, max_concurrent: int = 100,
+                 engine: str = "openai",  # MỚI: Phương thức dịch
+                 marian_model_path: str = "Helsinki-NLP/opus-mt-en-vi", # MỚI
+                 marian_device: str = "cpu"):
         self.input_file = input_file
         self.output_dir = output_dir
         self.openai_api_key = openai_api_key
@@ -15,7 +23,15 @@ class DocxTranslator:
         self.target_lang = target_lang
         self.max_chunk_size = max_chunk_size
         self.max_concurrent = max_concurrent
+        self.engine = engine
         
+        if self.engine == "marian":
+            self.client = MarianClient(model_path=marian_model_path, device=marian_device)
+        else:
+            # Khởi tạo OpenAI y hệt như logic gốc của bạn
+            self.client_manager = OpenAIClientManager(openai_api_key=openai_api_key)
+            self.client = self.client_manager.get_client()
+
         if not self.openai_api_key:
             raise ValueError("OpenAI API key not found. Please provide a valid OpenAI API key.")
 
@@ -24,7 +40,16 @@ class DocxTranslator:
 
         # Initialize pipeline components
         self.extractor = Extractor(self.input_file, self.checkpoint_file)
-        self.translator = Translator(self.checkpoint_file, self.openai_api_key, self.model, self.source_lang, self.target_lang, self.max_chunk_size, self.max_concurrent)
+        self.translator = Translator(
+            checkpoint_file=self.checkpoint_file, 
+            client=self.client,           # Đối tượng client đã khởi tạo ở __init__
+            engine=self.engine,           # "openai" hoặc "marian"
+            model=self.model, 
+            source_lang=self.source_lang, 
+            target_lang=self.target_lang, 
+            max_chunk_size=self.max_chunk_size, 
+            max_concurrent=self.max_concurrent
+        )
         self.injector = Injector(self.input_file, self.checkpoint_file, self.output_file)
 
     def _setup_paths(self):

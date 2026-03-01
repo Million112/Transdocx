@@ -5,11 +5,16 @@ build/
 dist/
 wheels/
 *.egg-info
+*.spec
 
-# Virtual environments
+# Thư mục "não AI" (Nên copy thủ công, không đẩy lên Git vì quá nặng)
+my_custom_marianMT/
+
+# Virtual environments & Sensitive data
 config.yaml
 .env
 .venv
 
+# Output & Tests
 test/
 output/

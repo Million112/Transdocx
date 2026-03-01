@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [
-    { name = "Pham Nguyen Ngoc Bao", email = "pnnbao@gmail.com" }
+    { name = "Trieu Quang Hung", email = "qnghungtrieu@gmail.com" }
 ]
 
 dependencies = [
@@ -17,9 +17,6 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/pnnbao97/transdocx"
-Repository = "https://github.com/pnnbao97/transdocx"
-Issues = "https://github.com/pnnbao97/transdocx/issues"
 
 [project.scripts]
 transdocx = "transdocx.main:main"
